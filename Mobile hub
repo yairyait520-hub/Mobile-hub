@@ -217,4 +217,3 @@ end)
 -- Aplicar ESP a los jugadores existentes y nuevos
 for _, player in ipairs(Players:GetPlayers()) do ApplyESP(player) end
 Players.PlayerAdded:Connect(ApplyESP)
-
