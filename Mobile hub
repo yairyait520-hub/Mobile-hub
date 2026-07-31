@@ -1,0 +1,219 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Variables de Estado
+local AimbotEnabled = false
+local ESPEnabled = false
+local IsNight = false
+local FOVRadius = 50
+
+-- Círculo FOV (Librería Drawing de Executores)
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+FOVCircle.Thickness = 2
+FOVCircle.NumSides = 60
+FOVCircle.Radius = FOVRadius
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+-- Interface de Usuario (GUI)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MobileHubGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Contenedor Principal
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 220, 0, 260)
+MainFrame.Position = UDim2.new(0.5, -110, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+-- Título
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -30, 0, 35)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Mobile Hub"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+-- Botón Minimizar
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+MinimizeBtn.Position = UDim2.new(1, -30, 0, 5)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.TextSize = 18
+MinimizeBtn.Font = Enum.Font.SourceSansBold
+MinimizeBtn.Parent = MainFrame
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 5)
+MinCorner.Parent = MinimizeBtn
+
+-- Contenedor de Botones
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(1, -20, 1, -45)
+Container.Position = UDim2.new(0, 10, 0, 40)
+Container.BackgroundTransparency = 1
+Container.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.Parent = Container
+
+-- Función Auxiliar para Crear Botones
+local function CreateButton(text, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 35)
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.SourceSansSemibold
+    btn.Parent = Container
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    
+    return btn
+end
+
+-- Botones de la Interfaz
+local AimbotBtn = CreateButton("Aimbot Mobile: OFF", Color3.fromRGB(45, 45, 60))
+local ESPBtn = CreateButton("ESP Player All: OFF", Color3.fromRGB(45, 45, 60))
+local DayNightBtn = CreateButton("Cambiar Día/Noche", Color3.fromRGB(45, 45, 60))
+local FOVBtn = CreateButton("Tamaño Círculo FOV: 50", Color3.fromRGB(45, 45, 60))
+
+--------------------------------------------------
+-- Lógica de Minimizar
+--------------------------------------------------
+local isMinimized = false
+MinimizeBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    Container.Visible = not isMinimized
+    MainFrame.Size = isMinimized and UDim2.new(0, 220, 0, 35) or UDim2.new(0, 220, 0, 260)
+    MinimizeBtn.Text = isMinimized and "+" or "-"
+end)
+
+--------------------------------------------------
+-- Lógica Día / Noche
+--------------------------------------------------
+DayNightBtn.MouseButton1Click:Connect(function()
+    IsNight = not IsNight
+    Lighting.ClockTime = IsNight and 0 or 14
+end)
+
+--------------------------------------------------
+-- Ajuste del Círculo FOV
+--------------------------------------------------
+FOVBtn.MouseButton1Click:Connect(function()
+    FOVRadius = FOVRadius + 25
+    if FOVRadius > 100 then
+        FOVRadius = 25
+    end
+    FOVCircle.Radius = FOVRadius
+    FOVBtn.Text = "Tamaño Círculo FOV: " .. tostring(FOVRadius)
+end)
+
+--------------------------------------------------
+-- Lógica Aimbot & Círculo
+--------------------------------------------------
+AimbotBtn.MouseButton1Click:Connect(function()
+    AimbotEnabled = not AimbotEnabled
+    FOVCircle.Visible = AimbotEnabled
+    AimbotBtn.Text = "Aimbot Mobile: " .. (AimbotEnabled and "ON" or "OFF")
+    AimbotBtn.BackgroundColor3 = AimbotEnabled and Color3.fromRGB(0, 170, 100) or Color3.fromRGB(45, 45, 60)
+end)
+
+local function GetClosestTarget()
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local closestPlayer = nil
+    local shortestDistance = FOVRadius
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local head = player.Character.Head
+            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                if dist < shortestDistance then
+                    shortestDistance = dist
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+RunService.RenderStepped:Connect(function()
+    -- Mantener el círculo centrado en pantalla
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    -- Fijar cámara a la cabeza del enemigo cercano si está activado
+    if AimbotEnabled then
+        local target = GetClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Character.Head.Position)
+        end
+    end
+end)
+
+--------------------------------------------------
+-- Lógica ESP (Visión a través de paredes)
+--------------------------------------------------
+local function ApplyESP(player)
+    if player == LocalPlayer then return end
+    
+    local function AddHighlight(character)
+        if not character:FindFirstChild("ESPHighlight") then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "ESPHighlight"
+            highlight.FillColor = Color3.fromRGB(0, 150, 255)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.FillTransparency = 0.5
+            highlight.Enabled = ESPEnabled
+            highlight.Parent = character
+        end
+    end
+
+    if player.Character then AddHighlight(player.Character) end
+    player.CharacterAdded:Connect(AddHighlight)
+end
+
+ESPBtn.MouseButton1Click:Connect(function()
+    ESPEnabled = not ESPEnabled
+    ESPBtn.Text = "ESP Player All: " .. (ESPEnabled and "ON" or "OFF")
+    ESPBtn.BackgroundColor3 = ESPEnabled and Color3.fromRGB(0, 170, 100) or Color3.fromRGB(45, 45, 60)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("ESPHighlight") then
+            player.Character.ESPHighlight.Enabled = ESPEnabled
+        end
+    end
+end)
+
+-- Aplicar ESP a los jugadores existentes y nuevos
+for _, player in ipairs(Players:GetPlayers()) do ApplyESP(player) end
+Players.PlayerAdded:Connect(ApplyESP)
